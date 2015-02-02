@@ -23,6 +23,7 @@ typedef void (^DAKeyboardDidMoveBlock)(CGRect keyboardFrameInView, BOOL opening,
  */
 @property (nonatomic) CGFloat keyboardTriggerOffset;
 @property (nonatomic, readonly) BOOL keyboardWillRecede;
+@property (nonatomic, assign) BOOL showsKeyboardOnScrollUp;
 
 /** Adding pan-to-dismiss (functionality introduced in iMessages)
  @param didMoveBlock called everytime the keyboard is moved so you can update

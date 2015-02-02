@@ -24,6 +24,7 @@ static char UIViewKeyboardPanRecognizer;
 static char UIViewPreviousKeyboardRect;
 static char UIViewIsPanning;
 static char UIViewKeyboardOpened;
+static char UIViewShowsKeyboardOnScrollUp;
 
 @interface UIView (DAKeyboardControl_Internal) <UIGestureRecognizerDelegate>
 
@@ -203,7 +204,9 @@ static char UIViewKeyboardOpened;
     {
         self.keyboardActiveView.hidden = YES;
         self.keyboardActiveView.userInteractionEnabled = NO;
-        [self.keyboardActiveInput resignFirstResponder];
+        if (!self.showsKeyboardOnScrollUp) {
+            [self.keyboardActiveInput resignFirstResponder];
+        }
     }
 }
 
@@ -215,16 +218,23 @@ static char UIViewKeyboardOpened;
     self.keyboardActiveInput = notification.object;
     if (!self.keyboardActiveInput.inputAccessoryView)
     {
-        UITextField *textField = (UITextField *)self.keyboardActiveInput;
-        if ([textField respondsToSelector:@selector(setInputAccessoryView:)])
+        id responder = (UIResponder *)self.keyboardActiveInput;
+        if ([responder respondsToSelector:@selector(setInputAccessoryView:)])
         {
             UIView *nullView = [[UIView alloc] initWithFrame:CGRectZero];
             nullView.backgroundColor = [UIColor clearColor];
-            textField.inputAccessoryView = nullView;
+            [responder setInputAccessoryView:nullView];
         }
-        self.keyboardActiveInput = (UIResponder *)textField;
+        self.keyboardActiveInput = (UIResponder *)responder;
         // Force the keyboard active view reset
         [self inputKeyboardDidShow];
+    }
+    
+    if (self.showsKeyboardOnScrollUp) {
+        CGRect newKeyboardViewFrame = self.keyboardActiveView.frame;
+        newKeyboardViewFrame.origin.y = self.keyboardActiveView.window.bounds.size.height;;
+        [self.keyboardActiveView setFrame:newKeyboardViewFrame];
+        [[self keyboardActiveView] setUserInteractionEnabled:YES];
     }
 }
 
@@ -263,12 +273,14 @@ static char UIViewKeyboardOpened;
                          if (self.panning && !self.keyboardPanRecognizer)
                          {
                              // Register for gesture recognizer calls
-                             self.keyboardPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                                                                                  action:@selector(panGestureDidChange:)];
-                             [self.keyboardPanRecognizer setMinimumNumberOfTouches:1];
-                             [self.keyboardPanRecognizer setDelegate:self];
-                             [self.keyboardPanRecognizer setCancelsTouchesInView:NO];
-                             [self addGestureRecognizer:self.keyboardPanRecognizer];
+                             if (!self.keyboardPanRecognizer) {
+                                 self.keyboardPanRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
+                                                                                                      action:@selector(panGestureDidChange:)];
+                                 [self.keyboardPanRecognizer setMinimumNumberOfTouches:1];
+                                 [self.keyboardPanRecognizer setDelegate:self];
+                                 [self.keyboardPanRecognizer setCancelsTouchesInView:NO];
+                                 [self addGestureRecognizer:self.keyboardPanRecognizer];
+                             }
                          }
                      }];
 }
@@ -353,8 +365,8 @@ static char UIViewKeyboardOpened;
                      }
                      completion:^(__unused BOOL finished){
                          // Remove gesture recognizer when keyboard is not showing
-                         [self removeGestureRecognizer:self.keyboardPanRecognizer];
-                         self.keyboardPanRecognizer = nil;
+//                         [self removeGestureRecognizer:self.keyboardPanRecognizer];
+//                         self.keyboardPanRecognizer = nil;
                      }];
 }
 
@@ -362,8 +374,8 @@ static char UIViewKeyboardOpened;
 {
     self.keyboardActiveView.hidden = NO;
     self.keyboardActiveView.userInteractionEnabled = YES;
-    self.keyboardActiveView = nil;
-    self.keyboardActiveInput = nil;
+//    self.keyboardActiveView = nil;
+//    self.keyboardActiveInput = nil;
     self.keyboardOpened = NO;
 }
 
@@ -571,9 +583,11 @@ static char UIViewKeyboardOpened;
                 UIView *nullView = [[UIView alloc] initWithFrame:CGRectZero];
                 nullView.backgroundColor = [UIColor clearColor];
                 textView.inputAccessoryView = nullView;
+                
             }
         }
     }
+    
     [self swizzled_addSubview:subview];
 }
 
@@ -643,6 +657,20 @@ static char UIViewKeyboardOpened;
                              [NSNumber numberWithFloat:keyboardTriggerOffset],
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     [self didChangeValueForKey:@"keyboardTriggerOffset"];
+}
+
+- (BOOL)showsKeyboardOnScrollUp {
+    NSNumber *showsKeyboardOnScrollUpNumber = objc_getAssociatedObject(self,
+                                                                       &UIViewShowsKeyboardOnScrollUp);
+
+    return [showsKeyboardOnScrollUpNumber boolValue];
+}
+
+- (void)setShowsKeyboardOnScrollUp:(BOOL)showsKeyboardOnScrollUp {
+    objc_setAssociatedObject(self,
+                             &UIViewShowsKeyboardOnScrollUp,
+                             [NSNumber numberWithBool:showsKeyboardOnScrollUp],
+                             OBJC_ASSOCIATION_ASSIGN);
 }
 
 - (BOOL)isPanning
